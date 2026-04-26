@@ -1,0 +1,24 @@
+{
+  "name": "@opencray/secret-guardian",
+  "version": "1.0.0",
+  "description": "Real-time secret detection for OpenClaw — intercepts API keys, tokens, and credentials before they're sent",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "keywords": ["openclaw", "plugin", "security", "secret-detection", "api-key", "token"],
+  "author": "Dazzzz (Darren Halprin) <darren@halprin.com.au>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Dazzzz/opencray-plugin-secret-guardian.git"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.4.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}
