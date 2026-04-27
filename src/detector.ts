@@ -1,23 +1,23 @@
 const PATTERNS = [
   // OpenRouter
-  { type: "api_key", service: "OpenRouter", regex: /sk-or-v1-[a-zA-Z0-9]{40,}/g, confidence: "HIGH" as const },
+  { type: "api_key", service: "OpenRouter", regex: /sk-or-v1-[a-zA-Z0-9]{40,}/gi, confidence: "HIGH" as const },
   // OpenAI
-  { type: "api_key", service: "OpenAI", regex: /sk-proj-[a-zA-Z0-9_-]{100,}/g, confidence: "HIGH" as const },
-  { type: "api_key", service: "OpenAI", regex: /sk-[a-zA-Z0-9]{48}/g, confidence: "HIGH" as const },
+  { type: "api_key", service: "OpenAI", regex: /sk-proj-[a-zA-Z0-9_-]{100,}/gi, confidence: "HIGH" as const },
+  { type: "api_key", service: "OpenAI", regex: /sk-[a-zA-Z0-9]{48}/gi, confidence: "HIGH" as const },
   // Anthropic
-  { type: "api_key", service: "Anthropic", regex: /sk-ant-[a-zA-Z0-9]{32,}/g, confidence: "HIGH" as const },
+  { type: "api_key", service: "Anthropic", regex: /sk-ant-[a-zA-Z0-9]{32,}/gi, confidence: "HIGH" as const },
   // GitHub
-  { type: "token", service: "GitHub", regex: /gh[pousr]_[A-Za-z0-9_]{36,}/g, confidence: "HIGH" as const },
+  { type: "token", service: "GitHub", regex: /gh[pousr]_[A-Za-z0-9_]{36,}/gi, confidence: "HIGH" as const },
   // AWS
   { type: "access_key", service: "AWS", regex: /AKIA[0-9A-Z]{16}/g, confidence: "HIGH" as const },
   // Telegram
-  { type: "bot_token", service: "Telegram", regex: /\d{9,10}:[A-Za-z0-9_-]{35}/g, confidence: "HIGH" as const },
+  { type: "bot_token", service: "Telegram", regex: /\d{9,10}:[A-Za-z0-9_-]{30,}/gi, confidence: "HIGH" as const },
   // Discord
-  { type: "bot_token", service: "Discord", regex: /MT[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{20,}/g, confidence: "HIGH" as const },
+  { type: "bot_token", service: "Discord", regex: /MT[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{20,}/gi, confidence: "HIGH" as const },
   // Stripe
-  { type: "api_key", service: "Stripe", regex: /sk_(live|test)_[0-9a-zA-Z]{24,}/g, confidence: "HIGH" as const },
+  { type: "api_key", service: "Stripe", regex: /sk_(live|test)_[0-9a-zA-Z]{24,}/gi, confidence: "HIGH" as const },
   // Brave Search
-  { type: "api_key", service: "Brave Search", regex: /BSA[a-zA-Z0-9]{32}/g, confidence: "HIGH" as const },
+  { type: "api_key", service: "Brave Search", regex: /BSA[a-zA-Z0-9]{28,}/gi, confidence: "HIGH" as const },
   // Generic JWT
   { type: "jwt", service: "Generic", regex: /eyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*/g, confidence: "MEDIUM" as const },
   // Generic API key patterns (lowest priority — keep last)
@@ -55,6 +55,8 @@ export function scanForSecrets(text: string): GuardianResult {
   }
 
   for (const pattern of PATTERNS) {
+    // Reset lastIndex for global regexes to handle repeated scans
+    pattern.regex.lastIndex = 0;
     const matches = text.matchAll(pattern.regex);
     for (const match of matches) {
       const value = match[0];

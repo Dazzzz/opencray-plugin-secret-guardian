@@ -1,8 +1,8 @@
 {
   "id": "secret-guardian",
   "name": "Secret Guardian",
-  "version": "1.0.0",
-  "description": "Real-time secret detection for OpenClaw — blocks API keys, tokens, and credentials before they're sent",
+  "version": "1.1.0",
+  "description": "Redacts secrets before OpenClaw persists them to session history and tool transcripts.",
   "main": "./dist/index.js",
   "author": "OpenCray (opencray.org)",
   "license": "MIT",
@@ -14,6 +14,7 @@
     "properties": {}
   },
   "hooks": {
-    "message_sending": "./dist/index.js"
+    "before_message_write": "./dist/index.js",
+    "tool_result_persist": "./dist/index.js"
   }
 }

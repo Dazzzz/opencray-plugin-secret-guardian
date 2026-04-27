@@ -1,119 +1,146 @@
 import { scanForSecrets, redactContent } from "./detector.js";
 
-// OpenClaw plugin types — using inline definitions since SDK exports vary by version
-interface PluginHookMessageSendingEvent {
-  to: string;
-  content: string;
-  replyToId?: string | number;
-  threadId?: string | number;
-  metadata?: Record<string, unknown>;
+interface AgentMessageLike {
+  role?: string;
+  content?: unknown;
+  text?: unknown;
+  [key: string]: unknown;
 }
 
-interface PluginHookMessageSendingResult {
-  content?: string;
-  cancel?: boolean;
+interface PluginHookBeforeMessageWriteEvent {
+  message: AgentMessageLike;
+  sessionKey?: string;
+  agentId?: string;
 }
 
-// ─── Plugin Hook ───────────────────────────────────────────────────────────────
+interface PluginHookBeforeMessageWriteResult {
+  block?: boolean;
+  message?: AgentMessageLike;
+}
 
-export async function onMessageSending(
-  event: PluginHookMessageSendingEvent
-): Promise<PluginHookMessageSendingResult> {
-  const { content } = event;
+interface PluginHookToolResultPersistEvent {
+  toolName?: string;
+  toolCallId?: string;
+  message: AgentMessageLike;
+  isSynthetic?: boolean;
+}
 
-  // Skip empty or very short messages
-  if (!content || content.length < 8) {
-    return {};
+interface PluginHookToolResultPersistResult {
+  message?: AgentMessageLike;
+}
+
+function extractTextFromMessage(message: AgentMessageLike): string | null {
+  if (typeof message.text === "string") return message.text;
+  if (typeof message.content === "string") return message.content;
+  return null;
+}
+
+function replaceTextInMessage(message: AgentMessageLike, redacted: string): AgentMessageLike {
+  if (typeof message.text === "string") {
+    return { ...message, text: redacted };
+  }
+  if (typeof message.content === "string") {
+    return { ...message, content: redacted };
+  }
+  return message;
+}
+
+function maybeRedactText(text: string, source: string): { changed: boolean; redacted: string; summary?: string } {
+  if (!text || text.length < 8) {
+    return { changed: false, redacted: text };
   }
 
-  // Run detection
-  const result = scanForSecrets(content);
-
+  const result = scanForSecrets(text);
   if (!result.findings || result.findings.length === 0) {
-    return {}; // Clean — allow through
+    return { changed: false, redacted: text };
   }
 
-  // Filter to HIGH confidence only for auto-blocking
-  const highConfidence = result.findings.filter(
-    (f) => f.confidence === "HIGH"
-  );
-
+  const highConfidence = result.findings.filter((f) => f.confidence === "HIGH");
   if (highConfidence.length === 0) {
-    // MEDIUM/LOW confidence — allow but log
     console.warn(
-      "[Secret Guardian] Medium/low confidence secrets detected (allowed):",
-      result.findings.map((f) => f.type).join(", ")
+      `[Secret Guardian] ${source}: medium/low confidence secret-like content allowed:`,
+      result.findings.map((f) => `${f.service} ${f.type} ${f.confidence}`).join(", ")
     );
-    return {};
+    return { changed: false, redacted: text };
   }
 
-  // HIGH confidence secrets found — BLOCK the message
-  console.error(
-    "[Secret Guardian] BLOCKED message with secrets:",
+  const redacted = redactContent(text, highConfidence);
+  console.warn(
+    `[Secret Guardian] ${source}: redacted before persistence:`,
     highConfidence.map((f) => `${f.service} ${f.type}`).join(", ")
   );
 
-  // Build redacted version for user to see what was caught
-  const redacted = redactContent(content, highConfidence);
-
   return {
-    cancel: true,
-    // Note: OpenClaw may not support 'content' modification in cancel mode
-    // The cancel prevents sending; user gets the alert via console/error
+    changed: redacted !== text,
+    redacted,
+    summary: highConfidence.map((f) => `${f.service} ${f.type}`).join(", ")
   };
 }
 
-// ─── Plugin Registration ───────────────────────────────────────────────────────
+export function onBeforeMessageWrite(
+  event: PluginHookBeforeMessageWriteEvent
+): PluginHookBeforeMessageWriteResult {
+  const text = extractTextFromMessage(event.message);
+  if (!text) return {};
+
+  const outcome = maybeRedactText(text, "before_message_write");
+  if (!outcome.changed) return {};
+
+  return {
+    message: replaceTextInMessage(event.message, outcome.redacted)
+  };
+}
+
+export function onToolResultPersist(
+  event: PluginHookToolResultPersistEvent
+): PluginHookToolResultPersistResult {
+  const text = extractTextFromMessage(event.message);
+  if (!text) return {};
+
+  const outcome = maybeRedactText(text, "tool_result_persist");
+  if (!outcome.changed) return {};
+
+  return {
+    message: replaceTextInMessage(event.message, outcome.redacted)
+  };
+}
 
 export function register() {
   console.log("[Secret Guardian] Plugin registered");
   return {
     id: "secret-guardian",
     name: "Secret Guardian",
-    version: "1.0.0",
+    version: "1.1.0",
     hooks: {
-      message_sending: onMessageSending,
+      before_message_write: onBeforeMessageWrite,
+      tool_result_persist: onToolResultPersist,
     },
   };
 }
 
 export function activate() {
-  console.log("[Secret Guardian] Plugin activated — watching for secrets");
+  console.log("[Secret Guardian] Plugin activated — redacting secrets before persistence");
 }
-
-// ─── Plugin Manifest ───────────────────────────────────────────────────────────
 
 export default {
   id: "secret-guardian",
   name: "Secret Guardian",
-  version: "1.0.0",
+  version: "1.1.0",
   description:
-    "Real-time secret detection for OpenClaw. Blocks messages containing API keys, tokens, passwords, and credentials before they reach chat channels.",
+    "Redacts secrets before OpenClaw persists them to session history and tool transcripts.",
   author: "OpenCray (opencray.org)",
   homepage: "https://opencray.org",
   repository: "https://github.com/Dazzzz/opencray-plugin-secret-guardian",
   license: "MIT",
-
   hooks: {
-    message_sending: onMessageSending,
+    before_message_write: onBeforeMessageWrite,
+    tool_result_persist: onToolResultPersist,
   },
-
-  // Configuration schema (for future use)
   config: {
     blockHighConfidence: {
       type: "boolean",
-      default: true,
-      description: "Auto-block HIGH confidence secrets",
-    },
-    warnMediumConfidence: {
-      type: "boolean",
-      default: true,
-      description: "Log warning for MEDIUM confidence secrets",
-    },
-    allowLowConfidence: {
-      type: "boolean",
-      default: true,
-      description: "Allow LOW confidence matches through",
-    },
-  },
+      default: false,
+      description: "Reserved for future use; current mode redacts instead of blocking."
+    }
+  }
 };
