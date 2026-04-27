@@ -1,4 +1,6 @@
 const PATTERNS = [
+  // Kimi
+  { type: "api_key", service: "Kimi", regex: /sk-kimi-[a-zA-Z0-9]{40,}/gi, confidence: "HIGH" as const },
   // OpenRouter
   { type: "api_key", service: "OpenRouter", regex: /sk-or-v1-[a-zA-Z0-9]{40,}/gi, confidence: "HIGH" as const },
   // OpenAI
