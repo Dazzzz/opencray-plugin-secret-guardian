@@ -1,6 +1,4 @@
-import { execSync } from "child_process";
-import { existsSync } from "fs";
-import { resolve } from "path";
+import { scanForSecrets, redactContent } from "./detector.js";
 
 // OpenClaw plugin types — using inline definitions since SDK exports vary by version
 interface PluginHookMessageSendingEvent {
@@ -16,84 +14,6 @@ interface PluginHookMessageSendingResult {
   cancel?: boolean;
 }
 
-// ─── Configuration ─────────────────────────────────────────────────────────
-
-const GUARDIAN_SCRIPT = resolve(
-  process.env.HOME || "~",
-  "clawd/scripts/security/secret_guardian.py"
-);
-
-const PROTECT_SCRIPT = resolve(
-  process.env.HOME || "~",
-  "clawd/scripts/security/protect-secret.sh"
-);
-
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-interface GuardianFinding {
-  type: string;
-  service: string;
-  confidence: "HIGH" | "MEDIUM" | "LOW";
-  value: string;
-}
-
-interface GuardianResult {
-  findings: GuardianFinding[];
-}
-
-// ─── Detection ─────────────────────────────────────────────────────────────────
-
-function runGuardian(text: string): GuardianResult {
-  if (!existsSync(GUARDIAN_SCRIPT)) {
-    console.warn("[Secret Guardian] Detection script not found:", GUARDIAN_SCRIPT);
-    return { findings: [] };
-  }
-
-  try {
-    const output = execSync(
-      `python3 "${GUARDIAN_SCRIPT}" --stdin`,
-      {
-        input: text,
-        encoding: "utf-8",
-        timeout: 5000,
-        maxBuffer: 1024 * 1024,
-      }
-    );
-    return JSON.parse(output) as GuardianResult;
-  } catch (err: any) {
-    // Exit code 1 means secrets found — that's expected
-    if (err.status === 1 && err.stdout) {
-      try {
-        return JSON.parse(err.stdout) as GuardianResult;
-      } catch {
-        return { findings: [] };
-      }
-    }
-    console.error("[Secret Guardian] Detection error:", err.message);
-    return { findings: [] };
-  }
-}
-
-// ─── Redaction ─────────────────────────────────────────────────────────────────
-
-function redactContent(content: string, findings: GuardianFinding[]): string {
-  let redacted = content;
-  for (const finding of findings) {
-    // Replace the actual secret value with a redaction marker
-    redacted = redacted.replace(finding.value, `[REDACTED: ${finding.type}]`);
-  }
-  return redacted;
-}
-
-// ─── Alert Message ───────────────────────────────────────────────────────────
-
-function buildAlert(findings: GuardianFinding[]): string {
-  const lines = findings.map(
-    (f) => `• **${f.service}** ${f.type} (confidence: ${f.confidence})`
-  );
-  return `🚨 **Secret Guardian Alert**\n\n${lines.join("\n")}\n\nYour message has been blocked to prevent exposing sensitive credentials.\n\n**Options:**\n1. Encrypt the secret: \`protect-secret.sh\`\n2. Use a redacted reference: \`[REDACTED: ${findings[0].type}]\`\n3. Rotate the credential if already exposed`;
-}
-
 // ─── Plugin Hook ───────────────────────────────────────────────────────────────
 
 export async function onMessageSending(
@@ -107,7 +27,7 @@ export async function onMessageSending(
   }
 
   // Run detection
-  const result = runGuardian(content);
+  const result = scanForSecrets(content);
 
   if (!result.findings || result.findings.length === 0) {
     return {}; // Clean — allow through
@@ -143,6 +63,24 @@ export async function onMessageSending(
   };
 }
 
+// ─── Plugin Registration ───────────────────────────────────────────────────────
+
+export function register() {
+  console.log("[Secret Guardian] Plugin registered");
+  return {
+    id: "secret-guardian",
+    name: "Secret Guardian",
+    version: "1.0.0",
+    hooks: {
+      message_sending: onMessageSending,
+    },
+  };
+}
+
+export function activate() {
+  console.log("[Secret Guardian] Plugin activated — watching for secrets");
+}
+
 // ─── Plugin Manifest ───────────────────────────────────────────────────────────
 
 export default {
@@ -150,10 +88,10 @@ export default {
   name: "Secret Guardian",
   version: "1.0.0",
   description:
-    "Real-time secret detection for OpenClaw. Blocks messages containing API keys, tokens, passwords, and credentials before they're sent to chat channels.",
+    "Real-time secret detection for OpenClaw. Blocks messages containing API keys, tokens, passwords, and credentials before they reach chat channels.",
   author: "OpenCray (opencray.org)",
   homepage: "https://opencray.org",
-  repository: "https://github.com/Dazzzz/opencray",
+  repository: "https://github.com/Dazzzz/opencray-plugin-secret-guardian",
   license: "MIT",
 
   hooks: {

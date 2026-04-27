@@ -11,6 +11,18 @@
   "keywords": ["openclaw", "plugin", "security", "secret-detection", "api-key", "token"],
   "author": "Dazzzz (Darren Halprin) <darren@halprin.com.au>",
   "license": "MIT",
+  "openclaw": {
+    "extensions": ["./dist/index.js"],
+    "hooks": {
+      "message_sending": "./dist/index.js"
+    }
+  },
+  "openclaw": {
+    "extensions": ["./dist/index.js"],
+    "hooks": {
+      "message_sending": "./dist/index.js"
+    }
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/Dazzzz/opencray-plugin-secret-guardian.git"

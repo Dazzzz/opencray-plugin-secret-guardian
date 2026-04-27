@@ -1,0 +1,19 @@
+{
+  "id": "secret-guardian",
+  "name": "Secret Guardian",
+  "version": "1.0.0",
+  "description": "Real-time secret detection for OpenClaw — blocks API keys, tokens, and credentials before they're sent",
+  "main": "./dist/index.js",
+  "author": "OpenCray (opencray.org)",
+  "license": "MIT",
+  "homepage": "https://opencray.org",
+  "repository": "https://github.com/Dazzzz/opencray-plugin-secret-guardian",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  },
+  "hooks": {
+    "message_sending": "./dist/index.js"
+  }
+}
