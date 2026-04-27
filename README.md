@@ -21,6 +21,33 @@ openclaw plugins install .
 - OpenClaw >= 2026.4.0
 - No Python dependency required in the current plugin build
 
+## Limitations
+
+### No real-time user warning
+The `before_message_write` hook **cannot send a warning message back to the user** in the chat interface. OpenClaw's hook result type only supports:
+- `block` — cancel the write
+- `message` — rewrite the message content
+
+There is no `warning` or `alert` field to display a formatted message to the user.
+
+**What this means:**
+- ✅ The secret is redacted before persistence (transcript/memory safe)
+- ❌ The user does **not** see a "⚠️ API key detected" warning in the chat
+- ❌ The user only sees the redacted `[REDACTED: ...]` version if they inspect the transcript later
+
+**Workarounds for user alerting:**
+1. Use a separate `message_received` hook for fire-and-forget alerting (but this runs after persistence)
+2. Use a custom channel integration that checks messages before display
+3. Rely on console logs and audit trails for detection awareness
+
+### Already-rendered text
+Secrets visible in the live chat UI **before** the hook fires remain visible. The hook only affects what gets persisted, not what's already on screen.
+
+### Historical data
+The plugin cannot retroactively redact secrets in session files created before the plugin was installed.
+
+---
+
 ## How It Works
 
 ```text
